@@ -1,0 +1,6 @@
+# Airtest 测试框架与 HTML 报告。
+# 注意：Airtest 会装自己的 opencv-contrib-python，容易和上面的
+# opencv-python-headless 冲突，建议放在独立 venv 里使用。
+airtest
+pocoui
+

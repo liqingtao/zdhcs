@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.venv-airtest/
+.venv-ocr/
+.venv-win/
+.pytest_cache/
+.idea/
+.vscode/
+log/
+build/zdhcs/
+dist/
+assets/screenshots/*.png
+assets/screenshots/*.jpg
+

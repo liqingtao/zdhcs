@@ -1,0 +1,7 @@
+# 轻量 OCR（onnxruntime 后端），跨平台、macOS 也能装。
+# 适合不想装 PaddlePaddle 时快速验证"读文字"链路；接口和 PaddleOCR 对齐。
+# 首次运行会联网下载 ONNX 模型。
+rapidocr_onnxruntime==1.4.4
+opencv-python==4.9.0.80
+numpy<2
+

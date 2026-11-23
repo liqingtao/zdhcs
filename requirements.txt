@@ -1,0 +1,9 @@
+# 核心依赖：能离线验证 OpenCV 模板匹配和阈值判断。
+# 安装方式见 README，推荐先建 venv。
+# 注意：本机是 Python 3.9 + macOS x86_64，opencv 5.x 没有对应的预编译 wheel，
+# 所以锁在 4.9；同时锁 numpy<2 避免与 opencv 4.x 的 ABI 不兼容。
+numpy>=1.24,<2
+opencv-python-headless==4.9.0.80
+Pillow>=9
+pytest>=7
+

@@ -1,0 +1,6 @@
+# PaddleOCR 文字识别。
+# paddlepaddle 体积较大，首次运行还会联网下载模型；macOS 支持有限，
+# 若安装困难，可考虑 rapidaocr/onnxruntime 作为轻量替代（见 README）。
+paddlepaddle>=2.5,<3.0
+paddleocr>=2.7,<3.0
+
