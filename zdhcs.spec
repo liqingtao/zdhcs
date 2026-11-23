@@ -1,8 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller 打包配置（onedir，控制台程序）。
+"""PyInstaller 打包配置（onedir，窗口程序）。
 
 在项目根目录执行：pyinstaller --clean --noconfirm zdhcs.spec
-产物：dist/zdhcs/zdhcs.exe
+产物：dist/zdhcs/zdhcs.exe（双击打开图形界面）
 
 OCR 与 Airtest 两个重依赖默认一并打进包里：
 - OCR：rapidocr_onnxruntime + onnxruntime（跨平台、模型随包分发，无需联网下载）。
@@ -34,7 +34,7 @@ for _pkg in (
         pass
 
 a = Analysis(
-    ["zdhcs.py"],
+    ["gui.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -62,7 +62,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

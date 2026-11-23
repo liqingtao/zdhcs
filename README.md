@@ -167,3 +167,8 @@ OCR 与 Airtest 两个重依赖会一并打进 exe：
 - Airtest 用 `airtest` + `pocoui`，`airtest` 子命令可离线自检 `Template.match_in`。
 - PaddleOCR / paddlepaddle 体积过大且打包脆弱，保持不打入，OCR 能力由 RapidOCR 提供。
 
+Windows 包现在是**图形界面**：双击 `zdhcs.exe` 直接打开窗口（[gui.py](gui.py)），
+界面提供「生成假画面 / 打开画面图 / 打开模板图 / 找图 / 找图+点击 / OCR 读文字 /
+Airtest 自检」按钮，阈值和方法可调，结果会显示在预览区和日志区。命令行入口
+[zdhcs.py](zdhcs.py) 保留，仍可 `python zdhcs.py <子命令>` 使用。
+

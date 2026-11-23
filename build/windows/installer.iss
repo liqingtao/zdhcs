@@ -1,7 +1,7 @@
 ; Inno Setup 安装脚本：把 dist\zdhcs\ 打成单文件 Setup.exe
 [Setup]
 AppName=zdhcs
-AppVersion=0.1.1
+AppVersion=0.2.0
 DefaultDirName={autopf}\zdhcs
 DefaultGroupName=zdhcs
 OutputDir=..\..\dist\installer
@@ -20,5 +20,5 @@ Name: "{group}\zdhcs"; Filename: "{app}\zdhcs.exe"
 Name: "{group}\卸载 zdhcs"; Filename: "{uninstallexe}"
 
 [Run]
-Filename: "{app}\zdhcs.exe"; Parameters: "selftest"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\zdhcs.exe"; Flags: postinstall nowait skipifsilent
 
