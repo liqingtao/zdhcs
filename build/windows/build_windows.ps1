@@ -11,7 +11,11 @@ if (-not (Test-Path ".venv-win")) {
 }
 
 & ".venv-win\Scripts\python.exe" -m pip install --upgrade pip
-& ".venv-win\Scripts\python.exe" -m pip install "numpy<2" opencv-python-headless==4.9.0.80 Pillow PyAutoGUI pyinstaller
+& ".venv-win\Scripts\python.exe" -m pip install "numpy<2" Pillow PyAutoGUI pyinstaller
+& ".venv-win\Scripts\python.exe" -m pip install "opencv-contrib-python==4.6.0.66"
+& ".venv-win\Scripts\python.exe" -m pip install airtest pocoui
+& ".venv-win\Scripts\python.exe" -m pip install --no-deps rapidocr_onnxruntime==1.4.4
+& ".venv-win\Scripts\python.exe" -m pip install onnxruntime pyclipper shapely PyYAML tqdm six
 
 & ".venv-win\Scripts\pyinstaller.exe" --clean --noconfirm zdhcs.spec
 

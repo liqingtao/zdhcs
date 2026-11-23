@@ -154,6 +154,7 @@ python zdhcs.py generate                       # 生成假画面/模板
 python zdhcs.py find --screen X --template Y   # 找图
 python zdhcs.py click --screen X --template Y  # 找图 + 点击（默认 dry-run）
 python zdhcs.py ocr --image X --keyword 倒计时  # 读文字
+python zdhcs.py airtest --screen X --template Y # Airtest Template.match_in 自检
 ```
 
 打包成 Windows 可执行文件用 PyInstaller（配置见 [zdhcs.spec](zdhcs.spec)）。注意：**PyInstaller 不支持跨平台编译**，Windows 的 exe 必须在 Windows 上构建，两种方式：
@@ -161,5 +162,8 @@ python zdhcs.py ocr --image X --keyword 倒计时  # 读文字
 1. 有 Windows 机器：拷贝整个项目过去，双击 [build/windows/build_windows.bat](build/windows/build_windows.bat)，产出 `dist\zdhcs\zdhcs.exe`；装了 Inno Setup 再跑 [build/windows/build_installer.bat](build/windows/build_installer.bat) 可得到 `Setup.exe` 安装包。
 2. 没有 Windows 机器：把仓库推到 GitHub，触发 [.github/workflows/build-windows.yml](.github/workflows/build-windows.yml)，云端 windows-latest 会自动产出便携 zip 和 `Setup.exe`，在 Actions 的 Artifacts 里下载即可。
 
-OCR/Airtest 属于重依赖（onnxruntime / paddle / 模型文件），默认不打进 exe；exe 里的 `ocr` 子命令在缺少引擎时会给出从源码安装的提示。
+OCR 与 Airtest 两个重依赖会一并打进 exe：
+- OCR 用 `rapidocr_onnxruntime` + `onnxruntime`，模型随包分发，`ocr` 子命令开箱即用。
+- Airtest 用 `airtest` + `pocoui`，`airtest` 子命令可离线自检 `Template.match_in`。
+- PaddleOCR / paddlepaddle 体积过大且打包脆弱，保持不打入，OCR 能力由 RapidOCR 提供。
 

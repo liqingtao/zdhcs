@@ -6,9 +6,10 @@
   find       在一张画面里找模板，打印命中位置/置信度
   click      截图 -> 找图 -> 点击（PyAutoGUI）
   ocr        用 OCR 读一张图里的文字
+  airtest    自检 Airtest 是否可用（Template.match_in，离线）
 
-用途：作为 PyInstaller 打包 Windows exe 的统一入口。OCR/Airtest 属于重依赖，
-默认不打进 exe；ocr 子命令在未安装 OCR 引擎时会给出安装提示。
+用途：作为 PyInstaller 打包 Windows exe 的统一入口。OCR 与 Airtest 两个重依赖
+会一并打进包里（OCR 用 RapidOCR/onnxruntime，Airtest 用 airtest+pocoui）。
 """
 from __future__ import annotations
 
@@ -103,6 +104,31 @@ def _cmd_ocr(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_airtest(args: argparse.Namespace) -> int:
+    from core import matcher
+
+    try:
+        from airtest.core.api import Template
+    except ImportError as exc:
+        print("未安装 airtest，无法运行。请先: pip install -r requirements-airtest.txt")
+        return 2
+
+    screen = matcher.load_image(args.screen)
+    template = Template(str(args.template), threshold=args.threshold)
+    try:
+        hit = template.match_in(screen)
+    except Exception as exc:  # Airtest 对失败形态的封装较薄，统一转成可读错误
+        print(f"Airtest 匹配出错: {exc}")
+        return 1
+
+    if hit is None:
+        print("未命中：Airtest Template.match_in 返回空。")
+        return 1
+
+    print(f"Airtest 命中，点击坐标 {hit}（对应 assert_exists 为真）")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="zdhcs",
@@ -136,6 +162,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_ocr.add_argument("--image", required=True)
     p_ocr.add_argument("--keyword", default=None)
     p_ocr.set_defaults(func=_cmd_ocr)
+
+    p_air = sub.add_parser("airtest", help="Airtest Template.match_in 自检")
+    p_air.add_argument("--screen", required=True)
+    p_air.add_argument("--template", default=str(config.TEMPLATES_DIR / "btn_start.png"))
+    p_air.add_argument("--threshold", type=float, default=config.DEFAULT_THRESHOLD)
+    p_air.set_defaults(func=_cmd_airtest)
 
     return parser
 

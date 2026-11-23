@@ -1,7 +1,7 @@
 ; Inno Setup 安装脚本：把 dist\zdhcs\ 打成单文件 Setup.exe
 [Setup]
 AppName=zdhcs
-AppVersion=0.1.0
+AppVersion=0.1.1
 DefaultDirName={autopf}\zdhcs
 DefaultGroupName=zdhcs
 OutputDir=..\..\dist\installer

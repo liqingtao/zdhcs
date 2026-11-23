@@ -14,7 +14,11 @@ if not exist ".venv-win" (
 call ".venv-win\Scripts\activate.bat"
 
 python -m pip install --upgrade pip
-python -m pip install "numpy<2" opencv-python-headless==4.9.0.80 Pillow PyAutoGUI pyinstaller
+python -m pip install "numpy<2" Pillow PyAutoGUI pyinstaller
+python -m pip install "opencv-contrib-python==4.6.0.66"
+python -m pip install airtest pocoui
+python -m pip install --no-deps rapidocr_onnxruntime==1.4.4
+python -m pip install onnxruntime pyclipper shapely PyYAML tqdm six
 
 pyinstaller --clean --noconfirm zdhcs.spec
 

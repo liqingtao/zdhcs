@@ -4,14 +4,27 @@
 在项目根目录执行：pyinstaller --clean --noconfirm zdhcs.spec
 产物：dist/zdhcs/zdhcs.exe
 
-OCR/Airtest 属于重依赖（onnxruntime / paddle / 模型文件），默认不打进 exe；
-exe 里的 ocr 子命令在缺引擎时会提示从源码安装。
+OCR 与 Airtest 两个重依赖默认一并打进包里：
+- OCR：rapidocr_onnxruntime + onnxruntime（跨平台、模型随包分发，无需联网下载）。
+- Airtest：airtest + pocoui/poco，把 touch(Template(...))/assert_exists 带进 exe。
+
+PaddleOCR / paddlepaddle 体积过大且 PyInstaller 打包脆弱，保持不打入，OCR 能力由 RapidOCR 提供。
 """
 from PyInstaller.utils.hooks import collect_all
 
 datas, binaries, hiddenimports = [], [], []
 
-for _pkg in ("pyautogui", "pyscreeze", "PIL"):
+for _pkg in (
+    "pyautogui",
+    "pyscreeze",
+    "PIL",
+    "airtest",
+    "poco",
+    "rapidocr_onnxruntime",
+    "onnxruntime",
+    "pyclipper",
+    "shapely",
+):
     try:
         _d, _b, _h = collect_all(_pkg)
         datas += _d
@@ -30,13 +43,9 @@ a = Analysis(
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        "airtest",
-        "pocoui",
         "paddle",
         "paddleocr",
-        "rapidocr_onnxruntime",
-        "onnxruntime",
-        "tkinter",
+        "paddlepaddle",
     ],
     noarchive=False,
 )
