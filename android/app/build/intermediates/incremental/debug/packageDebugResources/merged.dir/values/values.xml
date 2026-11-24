@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="accessibility_service_description">用于在游戏里模拟点击、截图识别，实现跑商/打图/刷经验自动化。需要您手动在无障碍设置中开启本服务。</string>
+    <string name="accessibility_service_label">自动化助手（无障碍）</string>
+    <string name="app_name">自动化助手</string>
+    <style name="Theme.Zdhcs" parent="Theme.Material3.DayNight.NoActionBar"/>
+</resources>
