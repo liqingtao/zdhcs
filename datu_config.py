@@ -24,6 +24,10 @@ TEMPLATES = {
     "btn_turnin": _t("btn_turnin.png"),            # 交任务按钮
 }
 
+# 导航锚点：不在功能页面时点它触发游戏自动寻路（默认采集自任务追踪里的
+# NPC 名，用 tools/capture_template.py 从你的当前任务里重新采集同名文件）。
+NAV_TEMPLATE = _t("nav_quest_npc.png")
+
 # OCR 状态关键词，用于日志里提示"现在大概在哪个阶段"（辅助，不驱动流程）。
 STATE_KEYWORDS = {
     "task": "任务",

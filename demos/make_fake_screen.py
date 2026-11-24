@@ -14,8 +14,11 @@ import config
 
 
 def _cjk_font(size: int) -> ImageFont.FreeTypeFont:
-    """优先找 macOS 自带中文字体，找不到就退回 PIL 默认字体。"""
+    """优先找系统中文字体（Windows -> macOS），找不到才退回 PIL 默认字体。"""
     candidates = [
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsun.ttc",
         "/System/Library/Fonts/PingFang.ttc",
         "/System/Library/Fonts/Hiragino Sans GB.ttc",
         "/System/Library/Fonts/STHeiti Medium.ttc",

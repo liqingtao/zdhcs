@@ -6,10 +6,25 @@ import sys
 from pathlib import Path
 
 
+# Windows 控制台/管道默认用本地编码（GBK），中文日志会变乱码。
+# 这里统一成 UTF-8，重定向和 CI 里也能正常显示。
+if sys.platform == "win32":
+    for _stream in (sys.stdout, sys.stderr):
+        if _stream is not None and hasattr(_stream, "reconfigure"):
+            try:
+                _stream.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
 def _app_root() -> Path:
     """程序根目录：源码模式是项目根，PyInstaller 打包后是 exe 所在目录。"""
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
+        exe_dir = Path(sys.executable).resolve().parent
+        # PyInstaller onedir 模式把 datas 放到 _internal/ 子目录里。
+        if (exe_dir / "_internal" / "assets").is_dir():
+            return exe_dir / "_internal"
+        return exe_dir
     return Path(__file__).resolve().parent
 
 

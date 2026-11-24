@@ -33,6 +33,11 @@ for _pkg in (
     except Exception:
         pass
 
+# 把模板和资源文件打进包里（打包后在 exe 同级 assets/ 下）。
+datas += [
+    ("assets", "assets"),
+]
+
 a = Analysis(
     ["gui.py"],
     pathex=[],

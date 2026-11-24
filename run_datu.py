@@ -1,28 +1,24 @@
 # -*- coding: utf-8 -*-
 """打图真实落地脚本：接真实屏幕，模板锚点驱动状态机 + 失败恢复。
 
-打图是线性状态流转，每一步靠"下一个锚点出现"推进：
-    领取任务 -> 自动寻路 -> 进入战斗(血条) -> 战斗结束(拾取) -> 交任务 -> 下一轮
+支持两种运行方式：
+1. CLI 直接跑：python run_datu.py --rounds 3 [--no-dry-run]
+2. 被图形界面托管：注入 screenshot / click / log / should_stop，
+   截图与点击只作用于托管窗口，「取消」随时安全停止。
 
-运行前：
-1. 用 tools/capture_template.py 采集五个锚点模板到 assets/templates/：
-       btn_take_task / btn_auto_route / btn_enter_battle / btn_pickup / btn_turnin
-2. 先 --dry-run 看每一步点得对不对，确认后再 --no-dry-run。
-
-用法：
-    python run_datu.py --rounds 3                # 干跑（默认）
-    python run_datu.py --rounds 3 --no-dry-run   # 真点
+流程：不在功能页面先自动寻路 -> 领取任务 -> 自动寻路 -> 战斗 -> 拾取 -> 交任务
 """
 from __future__ import annotations
 
 import argparse
 import time
 from pathlib import Path
+from typing import Callable, Optional
 
 import config
 import datu_config as cfg
 from core import screen
-from core.flow import Flow, FlowTimeout
+from core.flow import Flow, FlowCancelled, FlowTimeout, ensure_on_page
 
 
 def _evidence(fl: Flow, tag: str) -> Path:
@@ -48,15 +44,17 @@ def _state_hint(fl: Flow, engine) -> str:
     return "unknown"
 
 
-def _do_step(fl: Flow, template, name: str, timeout: float) -> bool:
+def _do_step(fl: Flow, template, name: str, timeout: float, log) -> bool:
     """等锚点出现并点击；找不到返回 False 并留证。"""
     try:
         fl.click_when_ready(template, timeout=timeout)
-        print(f"[步骤] {name} -> 点击 {fl.dry_run and '(干跑)' or ''}")
+        log(f"[步骤] {name} -> 点击")
         return True
+    except FlowCancelled:
+        raise
     except FlowTimeout:
         ev = _evidence(fl, name)
-        print(f"[失败] {name}：等待超时，截图留证 {ev}")
+        log(f"[失败] {name}：等待超时，截图留证 {ev}")
         return False
 
 
@@ -65,66 +63,102 @@ def _real_click(x: int, y: int) -> None:
     screen.click(x, y, dry_run=False)
 
 
-def run_datu(rounds: int, dry_run: bool = True) -> None:
+def run_datu(
+    rounds,
+    dry_run: bool = True,
+    screenshot=None,
+    click: Optional[Callable[[int, int], None]] = None,
+    log: Optional[Callable[[str], None]] = None,
+    should_stop: Optional[Callable[[], bool]] = None,
+) -> None:
+    """跑打图状态机。
+
+    screenshot/click：画面与点击来源，被 GUI 托管时注入（打到托管窗口）。
+    log：日志回调，默认 print。should_stop：返回 True 表示外部请求取消。
+    """
     from core.ocr import create_engine
 
+    log = log or print
     engine = create_engine()
     fl = Flow(
-        screenshot=screen.screenshot,
-        click=_real_click,
+        screenshot=screenshot or screen.screenshot,
+        click=click or _real_click,
         threshold=cfg.THRESHOLD,
         method=cfg.METHOD,
         dry_run=dry_run,
         delay_range=cfg.DELAY_RANGE,
+        should_stop=should_stop,
     )
 
     completed = 0
-    while completed < rounds:
-        print(f"\n===== 第 {completed + 1} 轮 =====")
-        hint = _state_hint(fl, engine)
-        print(f"[状态] 当前 OCR 提示: {hint}")
-
-        # 1. 领任务
-        if not _do_step(fl, cfg.TEMPLATES["btn_take_task"], "领取任务", cfg.WAIT_TIMEOUT):
-            break
-
-        # 2. 自动寻路
-        if not _do_step(fl, cfg.TEMPLATES["btn_auto_route"], "自动寻路", cfg.WAIT_TIMEOUT):
-            break
-
-        # 3. 等进入战斗（血条锚点出现）
-        print("[步骤] 等待进入战斗…")
+    try:
+        # 0. 确保在功能页面：不在就点导航锚点自动寻路。
         try:
-            fl.wait_for(cfg.TEMPLATES["btn_enter_battle"], timeout=cfg.BATTLE_TIMEOUT)
-            print("[步骤] 已进入战斗")
-        except FlowTimeout:
-            _evidence(fl, "enter_battle")
-            print("[失败] 未等到进入战斗，跳过本轮")
-            continue
+            ensure_on_page(
+                fl,
+                cfg.TEMPLATES["btn_take_task"],
+                nav_template=cfg.NAV_TEMPLATE,
+                log=log,
+            )
+            log("[导航] 已进入打图页面")
+        except FlowCancelled:
+            raise
+        except FlowTimeout as exc:
+            ev = _evidence(fl, "not_on_page")
+            log(f"[中止] 无法进入打图页面（截图留证 {ev}）：{exc}")
+            return
 
-        # 4. 等战斗结束（拾取按钮出现）
-        print("[步骤] 等待战斗结束…")
-        try:
-            fl.wait_for(cfg.TEMPLATES["btn_pickup"], timeout=cfg.BATTLE_TIMEOUT)
-            print("[步骤] 战斗结束")
-        except FlowTimeout:
-            _evidence(fl, "battle_end")
-            print("[失败] 未等到战斗结束，跳过本轮")
-            continue
+        while completed < rounds:
+            hint = _state_hint(fl, engine)
+            log(f"\n===== 第 {completed + 1} 轮（OCR 提示: {hint}）=====")
 
-        # 5. 拾取
-        if not _do_step(fl, cfg.TEMPLATES["btn_pickup"], "拾取", cfg.WAIT_TIMEOUT):
-            continue
+            # 1. 领任务
+            if not _do_step(fl, cfg.TEMPLATES["btn_take_task"], "领取任务", cfg.WAIT_TIMEOUT, log):
+                break
 
-        # 6. 交任务
-        if not _do_step(fl, cfg.TEMPLATES["btn_turnin"], "交任务", cfg.WAIT_TIMEOUT):
-            continue
+            # 2. 自动寻路
+            if not _do_step(fl, cfg.TEMPLATES["btn_auto_route"], "自动寻路", cfg.WAIT_TIMEOUT, log):
+                break
 
-        completed += 1
-        print(f"[完成] 第 {completed} 轮结束")
-        fl.pause()
+            # 3. 等进入战斗（血条锚点出现）
+            log("[步骤] 等待进入战斗…")
+            try:
+                fl.wait_for(cfg.TEMPLATES["btn_enter_battle"], timeout=cfg.BATTLE_TIMEOUT)
+                log("[步骤] 已进入战斗")
+            except FlowCancelled:
+                raise
+            except FlowTimeout:
+                _evidence(fl, "enter_battle")
+                log("[失败] 未等到进入战斗，跳过本轮")
+                continue
 
-    print(f"\n===== 结束，完成 {completed} 轮 =====")
+            # 4. 等战斗结束（拾取按钮出现）
+            log("[步骤] 等待战斗结束…")
+            try:
+                fl.wait_for(cfg.TEMPLATES["btn_pickup"], timeout=cfg.BATTLE_TIMEOUT)
+                log("[步骤] 战斗结束")
+            except FlowCancelled:
+                raise
+            except FlowTimeout:
+                _evidence(fl, "battle_end")
+                log("[失败] 未等到战斗结束，跳过本轮")
+                continue
+
+            # 5. 拾取
+            if not _do_step(fl, cfg.TEMPLATES["btn_pickup"], "拾取", cfg.WAIT_TIMEOUT, log):
+                continue
+
+            # 6. 交任务
+            if not _do_step(fl, cfg.TEMPLATES["btn_turnin"], "交任务", cfg.WAIT_TIMEOUT, log):
+                continue
+
+            completed += 1
+            log(f"[完成] 第 {completed} 轮结束")
+            fl.pause()
+    except FlowCancelled:
+        log("[取消] 收到停止请求，任务已终止")
+
+    log(f"\n===== 结束，完成 {completed} 轮 =====")
 
 
 def main() -> None:

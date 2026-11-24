@@ -24,6 +24,10 @@ class FlowTimeout(RuntimeError):
     """等待元素出现的超时异常。"""
 
 
+class FlowCancelled(RuntimeError):
+    """任务被用户取消。"""
+
+
 class Flow:
     def __init__(
         self,
@@ -33,6 +37,7 @@ class Flow:
         method: str = "TM_CCOEFF_NORMED",
         dry_run: bool = True,
         delay_range: Sequence[float] = (0.5, 1.5),
+        should_stop: Optional[Callable[[], bool]] = None,
     ) -> None:
         self.screenshot = screenshot
         self._click = click
@@ -40,6 +45,12 @@ class Flow:
         self.method = method
         self.dry_run = dry_run
         self.delay_range = tuple(delay_range)
+        self.should_stop = should_stop
+
+    def check_stop(self) -> None:
+        """外部取消检查：托管任务请求停止时抛出 FlowCancelled。"""
+        if self.should_stop is not None and self.should_stop():
+            raise FlowCancelled("任务已取消")
 
     # ------------------------------------------------------------------ 基础
     def pause(self) -> None:
@@ -70,6 +81,7 @@ class Flow:
         deadline = time.time() + timeout
         last: Optional[matcher.MatchResult] = None
         while time.time() < deadline:
+            self.check_stop()
             last = self.find(template, threshold=threshold)
             if last.found:
                 return last
@@ -86,6 +98,7 @@ class Flow:
     ) -> matcher.MatchResult:
         """等模板出现后点击其中心；dry_run 时只打印坐标。"""
         result = self.wait_for(template, timeout=timeout, interval=interval, threshold=threshold)
+        self.check_stop()
         if self.dry_run:
             print(f"[dry-run] 模拟点击 {result.center}")
         else:
@@ -152,6 +165,8 @@ def run_steps(
                     raise ValueError(f"未知 action: {action!r}")
                 log(f"[OK] {name}")
                 break
+            except FlowCancelled:
+                raise
             except Exception as exc:  # noqa: BLE001
                 log(f"[FAIL] {name}：{exc}（第 {attempt + 1}/{retries + 1} 次）")
                 if attempt >= retries:
@@ -163,3 +178,50 @@ def run_steps(
                     flow.pause()
         results.append(step)
     return results
+
+
+def ensure_on_page(
+    flow: Flow,
+    entry_template,
+    nav_template=None,
+    *,
+    entry_wait: float = 6.0,
+    nav_wait: float = 45.0,
+    tries: int = 2,
+    log: Callable[[str], None] = print,
+) -> matcher.MatchResult:
+    """确保已进入功能页面；不在页面时用导航锚点自动寻路。
+
+    先短等入口锚点（如 btn_take_task）；等不到且配置了导航锚点（如任务追踪
+    里的 NPC 名），就点它触发游戏自动寻路，再等入口锚点出现。
+    """
+    try:
+        return flow.wait_for(entry_template, timeout=entry_wait)
+    except FlowCancelled:
+        raise
+    except FlowTimeout:
+        pass
+
+    if nav_template is None:
+        raise FlowTimeout(f"不在功能页面且未配置导航锚点（入口: {entry_template}）")
+
+    last_error: Optional[Exception] = None
+    for i in range(tries):
+        flow.check_stop()
+        log(f"[导航] 当前不在功能页面，点击导航锚点自动寻路（第 {i + 1}/{tries} 次）")
+        try:
+            flow.click_when_ready(nav_template, timeout=8.0)
+        except FlowCancelled:
+            raise
+        except FlowTimeout as exc:
+            log(f"[导航] 未找到导航锚点：{exc}")
+            last_error = exc
+            continue
+        try:
+            return flow.wait_for(entry_template, timeout=nav_wait)
+        except FlowCancelled:
+            raise
+        except FlowTimeout as exc:
+            log("[导航] 寻路后仍未进入功能页面")
+            last_error = exc
+    raise FlowTimeout(f"自动寻路失败：{last_error}")

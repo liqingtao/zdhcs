@@ -34,12 +34,34 @@ def screenshot(
     """截取全屏或指定区域，返回 BGR ndarray，可选直接保存为 PNG。
 
     region 使用 (left, top, width, height) 的 PyAutoGUI 约定。
+
+    Windows 上 PyAutoGUI 的截图在部分环境（锁屏 / 沙箱桌面 / 特定驱动）会直接
+    抛错，这里做成降级链：pyautogui -> PIL ImageGrab -> mss，谁可用用谁。
     """
+    order = [backend] + [b for b in ("pyautogui", "pil", "mss") if b != backend]
+    last_error: Optional[Exception] = None
+    for name in order:
+        try:
+            bgr = _screenshot_backend(name, region)
+            if path is not None:
+                _save(bgr, path)
+            return bgr
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+    raise RuntimeError(f"所有截图后端都失败了: {last_error}") from last_error
+
+
+def _screenshot_backend(
+    backend: str,
+    region: Optional[Tuple[int, int, int, int]],
+) -> np.ndarray:
     if backend == "pyautogui":
         import pyautogui
 
         img = pyautogui.screenshot(region=region)
-    else:
+        return _to_bgr(img)
+
+    if backend == "pil":
         from PIL import ImageGrab
 
         # PIL 的 bbox 是 (left, top, right, bottom)。
@@ -48,6 +70,21 @@ def screenshot(
             left, top, width, height = region
             bbox = (left, top, left + width, top + height)
         img = ImageGrab.grab(bbox=bbox)
+        return _to_bgr(img)
+
+    if backend == "mss":
+        import mss
+
+        with mss.mss() as sct:
+            if region is None:
+                monitor = sct.monitors[1]
+            else:
+                left, top, width, height = region
+                monitor = {"left": left, "top": top, "width": width, "height": height}
+            shot = sct.grab(monitor)
+        return np.asarray(shot)[:, :, :3].copy()  # BGRA -> BGR
+
+    raise ValueError(f"未知截图后端: {backend!r}，可选 pyautogui / pil / mss")
 
     bgr = _to_bgr(img)
     if path is not None:
