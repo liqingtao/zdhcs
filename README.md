@@ -17,20 +17,34 @@ zdhcs/
 ├── core/
 │   ├── matcher.py               # OpenCV 模板匹配 + 阈值（核心）
 │   ├── screen.py                # PyAutoGUI 截图/点击
-│   └── ocr.py                   # PaddleOCR 封装
+│   ├── ocr.py                   # PaddleOCR / RapidOCR 封装
+│   └── flow.py                  # 流程原语：等待/点击/超时/步骤表（跑商、打图共用）
+├── paoshang_config.py           # 跑商配置：城市关键词、买卖阈值
+├── datu_config.py               # 打图配置：锚点模板、状态关键词、战斗超时
+├── run_paoshang.py              # 跑商真实屏幕入口（状态机 + OCR 决策）
+├── run_datu.py                  # 打图真实屏幕入口（线性状态机 + 锚点驱动）
 ├── demos/
 │   ├── make_fake_screen.py      # 生成假游戏画面 + 按钮模板
 │   ├── demo1_pyautogui.py       # 截图 -> 找图 -> 点击
 │   ├── demo2_opencv.py          # 模板匹配 + 阈值 + 热力图
 │   ├── demo3_airtest.py         # touch(Template) / assert_exists 入口
-│   └── demo4_ocr.py             # PaddleOCR 读文字
+│   ├── demo4_ocr.py             # PaddleOCR 读文字
+│   ├── demo7_paoshang.py        # 跑商状态机离线演示
+│   ├── make_paoshang_scene.py   # 跑商假画面
+│   ├── demo8_datu.py            # 打图状态机离线演示
+│   └── make_datu_scene.py       # 打图假画面
 ├── airtest_cases/
 │   ├── run_airtest.py           # 跑 .air 用例并生成报告
 │   └── smoke.air/smoke.py       # 可执行的 Airtest 用例
+├── tools/
+│   └── capture_template.py      # 从真实截图裁出按钮模板
 ├── assets/
 │   ├── templates/               # 按钮模板图
 │   └── screenshots/             # 截图/热力图输出
-└── tests/test_matcher.py        # 纯 OpenCV 单元测试（离线可跑）
+├── tests/
+│   ├── test_matcher.py          # 纯 OpenCV 单元测试（离线可跑）
+│   └── test_flow.py             # flow.py 流程原语单元测试
+└── gui.py                       # tkinter 图形界面（Windows 包用）
 ```
 
 ## 快速开始（先跑通离线核心）
@@ -138,10 +152,56 @@ assert_exists(Template("btn_reward.png", threshold=0.85), "点击后应出现领
 PaddleOCR 首次运行要下载模型（几百 MB），且 PaddlePaddle 对 macOS 支持有限；macOS 上更推荐用
 `requirements-ocr-rapid.txt` 里的 rapidocr（onnxruntime），轻量且跨平台。
 
+## 真实落地：跑商 / 打图
+
+把前四步的「截屏 → 找图 → 点击 → OCR」串成可循环的自动化流程，项目里放了两个
+对称的示例，共用同一套 `core/flow.py` 原语驱动状态机：
+
+| 流程 | 配置 | 入口脚本 | 离线演示 | 假画面 |
+| --- | --- | --- | --- | --- |
+| 跑商（低买高卖） | `paoshang_config.py` | `run_paoshang.py` | `demos/demo7_paoshang.py` | `demos/make_paoshang_scene.py` |
+| 打图（接任务→战斗→拾取→交任务） | `datu_config.py` | `run_datu.py` | `demos/demo8_datu.py` | `demos/make_datu_scene.py` |
+
+先离线跑通状态机（不碰真实屏幕，用假画面模拟状态流转）：
+
+```bash
+cd /Users/shaoke/Documents/Claude/mhxy/zdhcs
+./.venv-ocr/bin/python -m demos.demo7_paoshang --rounds 2   # 跑商
+./.venv-ocr/bin/python -m demos.demo8_datu --rounds 2       # 打图
+```
+
+接真实屏幕时三步走：
+
+1. 用 `tools/capture_template.py` 从你的游戏画面里裁出按钮/锚点，覆盖
+   `assets/templates/` 下同名文件：
+
+   ```bash
+   python -m tools.capture_template --from 截图.png --name btn_take_task.png --box left,top,right,bottom
+   ```
+
+2. 改对应 `*_config.py`：跑商改 `CITY_KEYWORDS`（两个城市名）和买卖阈值；打图改
+   `STATE_KEYWORDS`、`THRESHOLD`、`BATTLE_TIMEOUT`（战斗时长上限）。
+
+3. 先 `--dry-run`（默认，只打印坐标不真点）看每一步点得对不对，再 `--no-dry-run` 真点：
+
+   ```bash
+   python run_datu.py --rounds 3              # 干跑
+   python run_datu.py --rounds 3 --no-dry-run # 真点
+   ```
+
+打图是线性状态机「领取任务 → 自动寻路 → 进入战斗（血条锚点）→ 战斗结束（拾取按钮）
+→ 交任务 → 下一轮」，每步靠「下一个锚点模板出现」推进，找不到会超时并截图留证到
+`log/`。跑商则靠 OCR 读价格做买卖决策、模板点击做导航。
+
+真实屏幕需要 `pyautogui`（已加进 `requirements.txt`），并在 macOS 的「系统设置 →
+隐私与安全性」里给终端/Python 开启「辅助功能」和「屏幕录制」权限。
+
 ## 验证边界
 
 - 已在本机离线验证：`core/matcher.py` 的模板匹配、阈值判断、`find_all`、SQDIFF 方法、彩色匹配，通过 `pytest` 单测。
 - 已离线验证：`make fake` 生成假画面，`demo2` 跑通并产出热力图。
+- 已离线验证：`core/flow.py` 的等待/点击/超时/步骤表执行，通过 `pytest`（`tests/test_flow.py`，6 个用例）。
+- 已离线验证：跑商（`demo7`）和打图（`demo8`）的状态机闭环，用假画面跑通多轮。
 - **未在本机验证**：PyAutoGUI 的真实截屏/点击（需要 macOS 权限和真实屏幕）、Airtest 的 `touch/assert_exists`（需要设备和依赖）、PaddleOCR 的真实识别（依赖体积大，未安装）。这些代码已按官方 API 编写，但请按上面各自章节安装依赖后实测。
 
 ## 打包 Windows 安装包

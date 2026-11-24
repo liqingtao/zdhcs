@@ -64,13 +64,18 @@ def _evidence(fl: Flow, tag: str) -> Path:
     return path
 
 
+def _real_click(x: int, y: int) -> None:
+    """真正点击。screen.click 的 dry_run 默认值是 True，这里强制关掉。"""
+    screen.click(x, y, dry_run=False)
+
+
 def run_paoshang(rounds: int, dry_run: bool = True) -> None:
     from core.ocr import create_engine
 
     engine = create_engine()
     fl = Flow(
         screenshot=screen.screenshot,
-        click=screen.click,
+        click=_real_click,
         threshold=cfg.THRESHOLD,
         method=cfg.METHOD,
         dry_run=dry_run,
